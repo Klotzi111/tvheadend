@@ -51,7 +51,7 @@
 
 static void *htsp_server, *htsp_server_2;
 
-#define HTSP_PROTO_VERSION 44
+#define HTSP_PROTO_VERSION 45
 
 #define HTSP_ASYNC_OFF  0x00
 #define HTSP_ASYNC_ON   0x01
@@ -609,6 +609,8 @@ htsp_serierec_convert(htsp_connection_t *htsp, htsmsg_t *in, channel_t *ch, int 
       htsmsg_add_u32(conf, "mergetext", !retval ? u32 : 0);     // 0 = off
     if (!(retval = htsmsg_get_u32(in, "dupDetect", &u32)) || add)
       htsmsg_add_u32(conf, "record", !retval ? u32 : DVR_AUTOREC_RECORD_ALL);
+    if ((str = htsmsg_get_str(in, "dupDetectRegex")) || add)
+      htsmsg_add_str(conf, "record_regex", str ?: "");
     if (!(retval = htsmsg_get_u32(in, "maxCount", &u32)) || add)
       htsmsg_add_u32(conf, "maxcount", !retval ? u32 : 0);     // 0 = unlimited
     if (!(retval = htsmsg_get_u32(in, "broadcastType", &u32)) || add)
@@ -1240,6 +1242,7 @@ htsp_build_autorecentry(htsp_connection_t *htsp, dvr_autorec_entry_t *dae, const
   htsmsg_add_s64(out, "startExtra",  dvr_autorec_get_extra_time_pre(dae));
   htsmsg_add_s64(out, "stopExtra",   dvr_autorec_get_extra_time_post(dae));
   htsmsg_add_u32(out, "dupDetect",   dae->dae_record);
+  htsmsg_add_str2(out, "dupDetectRegex", dae->dae_record_regex);
   htsmsg_add_u32(out, "maxCount",    dae->dae_max_count);
   htsmsg_add_u32(out, "broadcastType", dae->dae_btype);
   htsmsg_add_str2(out, "comment",    dae->dae_comment);
