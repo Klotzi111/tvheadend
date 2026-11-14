@@ -79,6 +79,7 @@ const cols: ColumnDef[] = [
 
   /* Advanced — server's PO_ADVANCED filter gates these on basic users */
   { field: 'record', ...AUTOREC_FIELDS.record, editable: true },
+  { field: 'record_regex', ...AUTOREC_FIELDS.record_regex, editable: true },
   { field: 'btype', ...AUTOREC_FIELDS.btype, editable: true },
   { field: 'content_type', ...AUTOREC_FIELDS.content_type, editable: true },
   { field: 'cat1', ...AUTOREC_FIELDS.cat1, editable: true },
@@ -112,7 +113,7 @@ const gridCols = computed(() => withServerPriEnum(cols, idnodeClass.get('dvrauto
  * treats duplicates as one. */
 const EDITOR_LIST_BASE =
   'name,title,fulltext,mergetext,channel,start,start_window,weekdays,' +
-  'record,tag,btype,content_type,cat1,cat2,cat3,minduration,maxduration,' +
+  'record,record_regex,tag,btype,content_type,cat1,cat2,cat3,minduration,maxduration,' +
   'minyear,maxyear,minseason,maxseason,star_rating,directory,config_name,' +
   'pri,serieslink,comment'
 

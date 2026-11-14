@@ -28,6 +28,15 @@ const CS_PRI = [
   { key: 0, val: 'Důležitá' },
 ]
 
+describe('Autorecs — duplicate handling regex', () => {
+  it('offers record_regex as an editable column next to record', () => {
+    mount(AutorecsView as Component)
+    const fields = stubs.gridColumns().map((c) => c.field)
+    expect(fields.indexOf('record_regex')).toBe(fields.indexOf('record') + 1)
+    expect(stubs.gridColumn('record_regex')?.editable).toBe(true)
+  })
+})
+
 describe.each([
   ['Autorecs', AutorecsView as Component, 'dvrautorec'],
   ['Timers', TimersView as Component, 'dvrtimerec'],

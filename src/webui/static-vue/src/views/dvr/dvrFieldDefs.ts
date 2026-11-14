@@ -585,6 +585,9 @@ export const AUTOREC_FIELDS = {
     targetAccessKey: 'admin',
   },
   record: { sortable: true, minVisible: 'desktop', width: 140 },
+  /* Optional PCRE with named groups for duplicate detection
+   * (PT_STR, PO_ADVANCED). Empty = plain text comparison. */
+  record_regex: { sortable: true, filterType: 'string', minVisible: 'desktop', width: 220 },
   btype: { sortable: true, minVisible: 'desktop', width: 130 },
 
   /* EPG content filters.
