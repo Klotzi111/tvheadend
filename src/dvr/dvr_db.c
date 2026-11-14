@@ -1514,19 +1514,71 @@ static int _dvr_duplicate_epnum(dvr_entry_t *de, dvr_entry_t *de2, void **aux)
   return ! epg_episode_number_cmp(&(de->de_epnum), &(de2->de_epnum)) ;
 }
 
+/*
+ * Compare one language variant using the autorec duplicate regex.
+ * Only if the regex yields a key for BOTH texts, the named groups are
+ * compared (group by group). Otherwise both plain texts are compared.
+ * Returns 1 if equal.
+ */
+static int _dvr_duplicate_text_equal(dvr_autorec_entry_t *dae,
+                                     const char *s1, const char *s2)
+{
+  char *k1 = NULL, *k2 = NULL;
+  int r;
+
+  if (s1 == NULL || s2 == NULL)
+    return s1 == s2;
+  if (dvr_autorec_dedup_key(dae, s1, &k1) &&
+      dvr_autorec_dedup_key(dae, s2, &k2))
+    r = !strcmp(k1, k2);
+  else
+    r = !strcmp(s1, s2);
+  free(k1);
+  free(k2);
+  return r;
+}
+
+/*
+ * Like !lang_str_compare(), but each language variant is reduced to the
+ * named capture groups of the autorec duplicate regex (if configured).
+ * Returns 1 if the texts are considered equal.
+ */
+static int _dvr_duplicate_lang_str_equal(dvr_entry_t *de,
+                                         const lang_str_t *ls1,
+                                         const lang_str_t *ls2)
+{
+  dvr_autorec_entry_t *dae = de->de_autorec;
+  lang_str_ele_t *e;
+
+  if (dae == NULL || !dae->dae_record_regex_ok)
+    return !lang_str_compare(ls1, ls2);
+  if (ls1 == NULL || ls2 == NULL)
+    return ls1 == ls2;
+  /* same language lookup (incl. fallbacks) as lang_str_compare() */
+  RB_FOREACH(e, ls1, link)
+    if (!_dvr_duplicate_text_equal(dae, lang_str_get(ls1, e->lang),
+                                        lang_str_get(ls2, e->lang)))
+      return 0;
+  RB_FOREACH(e, ls2, link)
+    if (!_dvr_duplicate_text_equal(dae, lang_str_get(ls1, e->lang),
+                                        lang_str_get(ls2, e->lang)))
+      return 0;
+  return 1;
+}
+
 static int _dvr_duplicate_title(dvr_entry_t *de, dvr_entry_t *de2, void **aux)
 {
-  return !lang_str_compare(de->de_title, de2->de_title);
+  return _dvr_duplicate_lang_str_equal(de, de->de_title, de2->de_title);
 }
 
 static int _dvr_duplicate_subtitle(dvr_entry_t *de, dvr_entry_t *de2, void **aux)
 {
-  return !lang_str_compare(de->de_subtitle, de2->de_subtitle);
+  return _dvr_duplicate_lang_str_equal(de, de->de_subtitle, de2->de_subtitle);
 }
 
 static int _dvr_duplicate_desc(dvr_entry_t *de, dvr_entry_t *de2, void **aux)
 {
-  return !lang_str_compare(de->de_desc, de2->de_desc);
+  return _dvr_duplicate_lang_str_equal(de, de->de_desc, de2->de_desc);
 }
 
 static int _dvr_duplicate_per_month(dvr_entry_t *de, dvr_entry_t *de2, void **aux)

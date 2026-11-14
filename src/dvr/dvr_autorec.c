@@ -36,6 +36,91 @@ static void autorec_regfree(dvr_autorec_entry_t *dae)
   }
 }
 
+static void autorec_record_regex_free(dvr_autorec_entry_t *dae)
+{
+  if (dae->dae_record_regex_ok)
+    regex_free(&dae->dae_record_regex_code);
+  dae->dae_record_regex_ok = 0;
+  free(dae->dae_record_regex);
+  dae->dae_record_regex = NULL;
+}
+
+/*
+ * Compile the duplicate detection regex. On any problem the regex
+ * is ignored (plain text comparison), but the string is kept so the
+ * user still sees what was entered.
+ */
+static void autorec_record_regex_compile(dvr_autorec_entry_t *dae, const char *s)
+{
+  int n;
+
+  dae->dae_record_regex = strdup(s);
+  tvhlog_limit_reset(&dae->dae_record_regex_log);
+  if (regex_compile(&dae->dae_record_regex_code, s, 0, LS_DVR)) {
+#if ENABLE_PCRE || ENABLE_PCRE2
+    regex_free(&dae->dae_record_regex_code);
+#endif
+    tvherror(LS_DVR, "autorec \"%s\": invalid duplicate regex \"%s\", "
+             "using plain text comparison", dae->dae_name ?: "", s);
+    return;
+  }
+  n = regex_named_group_count(&dae->dae_record_regex_code);
+  if (n <= 0) {
+    regex_free(&dae->dae_record_regex_code);
+    tvherror(LS_DVR, "autorec \"%s\": duplicate regex \"%s\" has no named "
+             "capture groups%s, using plain text comparison",
+             dae->dae_name ?: "", s,
+             n < 0 ? " (not supported without PCRE)" : "");
+    return;
+  }
+  dae->dae_record_regex_ok = 1;
+  tvhdebug(LS_DVR, "autorec \"%s\": duplicate regex \"%s\" with %d named group(s)",
+           dae->dae_name ?: "", s, n);
+}
+
+/*
+ * Build the duplicate comparison key of a text from all named capture
+ * groups of the duplicate regex. Returns 1 and sets *key (caller frees)
+ * on success. Returns 0 if there is no (valid) regex, the regex does
+ * not match, or all named groups are empty - the caller then has to
+ * compare the plain texts of BOTH entries.
+ */
+int dvr_autorec_dedup_key(dvr_autorec_entry_t *dae, const char *text, char **key)
+{
+  int r;
+
+  *key = NULL;
+  if (text == NULL || dae == NULL || !dae->dae_record_regex_ok)
+    return 0;
+  r = regex_match_named_key(&dae->dae_record_regex_code, text, key);
+  switch (r) {
+  case TVHREGEX_KEY_OK:
+    tvhtrace(LS_DVR, "autorec \"%s\": duplicate key \"%s\" from \"%s\"",
+             dae->dae_name ?: "", *key, text);
+    return 1;
+  case TVHREGEX_KEY_EMPTY:
+    if (tvhlog_limit(&dae->dae_record_regex_log, 60))
+      tvhwarn(LS_DVR, "autorec \"%s\": all named groups of duplicate regex "
+              "\"%s\" are empty for \"%s\", comparing plain texts",
+              dae->dae_name ?: "", dae->dae_record_regex, text);
+    break;
+  case TVHREGEX_KEY_NOMATCH:
+    tvhdebug(LS_DVR, "autorec \"%s\": duplicate regex \"%s\" does not match "
+             "\"%s\", comparing plain texts",
+             dae->dae_name ?: "", dae->dae_record_regex, text);
+    break;
+  default:
+    if (tvhlog_limit(&dae->dae_record_regex_log, 60))
+      tvherror(LS_DVR, "autorec \"%s\": duplicate regex \"%s\" failed for "
+               "\"%s\", comparing plain texts",
+               dae->dae_name ?: "", dae->dae_record_regex, text);
+    break;
+  }
+  free(*key);
+  *key = NULL;
+  return 0;
+}
+
 /*
  *
  */
@@ -553,6 +638,7 @@ autorec_entry_destroy(dvr_autorec_entry_t *dae, int delconf)
   free(dae->dae_cat3);
 
   autorec_regfree(dae);
+  autorec_record_regex_free(dae);
 
   if(dae->dae_channel != NULL)
     LIST_REMOVE(dae, dae_channel_link);
@@ -685,6 +771,19 @@ dvr_autorec_entry_class_title_set(void *o, const void *v)
     return 1;
   }
   return 0;
+}
+
+static int
+dvr_autorec_entry_class_record_regex_set(void *o, const void *v)
+{
+  dvr_autorec_entry_t *dae = (dvr_autorec_entry_t *)o;
+  const char *s = v ?: "";
+  if (!strcmp(s, dae->dae_record_regex ?: ""))
+    return 0;
+  autorec_record_regex_free(dae);
+  if (s[0])
+    autorec_record_regex_compile(dae, s);
+  return 1;
 }
 
 static int
@@ -1409,6 +1508,23 @@ const idclass_t dvr_autorec_entry_class = {
       .off      = offsetof(dvr_autorec_entry_t, dae_record),
       .list     = dvr_autorec_entry_class_dedup_list,
       .opts     = PO_HIDDEN | PO_ADVANCED | PO_DOC_NLIST,
+    },
+    {
+      .type     = PT_STR,
+      .id       = "record_regex",
+      .name     = N_("Duplicate handling regex"),
+      .desc     = N_("Optional regular expression (PCRE) with named "
+                     "capture groups, e.g. (?<episode>...). For the "
+                     "title, subtitle and description based duplicate "
+                     "handling modes, the named groups of both texts are "
+                     "compared group by group instead of the whole "
+                     "texts. If the expression does not match one of the "
+                     "two texts or all its named groups are empty, the "
+                     "whole texts are compared. Leave empty for the "
+                     "normal text comparison."),
+      .set      = dvr_autorec_entry_class_record_regex_set,
+      .off      = offsetof(dvr_autorec_entry_t, dae_record_regex),
+      .opts     = PO_HIDDEN | PO_ADVANCED,
     },
     {
       .type     = PT_U32,

@@ -440,6 +440,13 @@ typedef struct dvr_autorec_entry {
 
   int dae_record;
 
+  /* Optional regex with named capture groups used for duplicate
+   * detection of text fields (title/subtitle/description). */
+  char *dae_record_regex;
+  tvh_regex_t dae_record_regex_code;
+  int dae_record_regex_ok;        /* compiled and has named groups */
+  tvhlog_limit_t dae_record_regex_log;
+
 } dvr_autorec_entry_t;
 
 extern struct dvr_autorec_entry_queue autorec_entries;
@@ -783,6 +790,8 @@ int dvr_autorec_get_extra_time_pre( dvr_autorec_entry_t *dae );
 void dvr_autorec_completed( dvr_autorec_entry_t *dae, int error_code );
 
 uint32_t dvr_autorec_get_max_sched_count(dvr_autorec_entry_t *dae);
+
+int dvr_autorec_dedup_key(dvr_autorec_entry_t *dae, const char *text, char **key);
 
 /**
  *
