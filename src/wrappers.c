@@ -475,6 +475,182 @@ int regex_match_substring_length(tvh_regex_t *regex, unsigned number)
 }
 
 /*
+ * Named capture groups
+ */
+
+/* Number of named capture groups, -1 if not supported (POSIX) */
+int regex_named_group_count(tvh_regex_t *regex)
+{
+#if ENABLE_PCRE
+  int count = 0;
+  if (regex->is_posix || regex->re_code == NULL)
+    return -1;
+  if (pcre_fullinfo(regex->re_code, regex->re_extra, PCRE_INFO_NAMECOUNT, &count))
+    return -1;
+  return count;
+#elif ENABLE_PCRE2
+  uint32_t count = 0;
+  if (regex->is_posix || regex->re_code == NULL)
+    return -1;
+  if (pcre2_pattern_info(regex->re_code, PCRE2_INFO_NAMECOUNT, &count) < 0)
+    return -1;
+  return count;
+#else
+  return -1;
+#endif
+}
+
+#if ENABLE_PCRE || ENABLE_PCRE2
+/*
+ * Build the key from all named groups (in name table order) as
+ * "<name>=<length>:<value>;" so that two keys of the same regex are
+ * equal exactly when every named group has the same value.
+ * Unset groups count as empty strings.
+ */
+static int regex_named_key_build
+  (const char *str, int count, const char **names,
+   const long *so, const long *eo, char **key)
+{
+  size_t total = 1, pos = 0, len;
+  int i, nonempty = 0;
+  char *k;
+
+  for (i = 0; i < count; i++) {
+    len = (so[i] >= 0 && eo[i] > so[i]) ? eo[i] - so[i] : 0;
+    if (len)
+      nonempty = 1;
+    total += strlen(names[i]) + len + 24;
+  }
+  if (!nonempty)
+    return TVHREGEX_KEY_EMPTY;
+  k = malloc(total);
+  if (k == NULL)
+    return TVHREGEX_KEY_ERROR;
+  for (i = 0; i < count; i++) {
+    len = (so[i] >= 0 && eo[i] > so[i]) ? eo[i] - so[i] : 0;
+    pos += snprintf(k + pos, total - pos, "%s=%zu:", names[i], len);
+    memcpy(k + pos, str + (len ? so[i] : 0), len);
+    pos += len;
+    k[pos++] = ';';
+  }
+  k[pos] = '\0';
+  *key = k;
+  return TVHREGEX_KEY_OK;
+}
+#endif
+
+/*
+ * Match str and build a comparison key from all named capture groups.
+ * Uses its own match data, so it does not disturb regex_match() state
+ * and supports more than TVHREGEX_MAX_MATCHES groups.
+ */
+int regex_match_named_key(tvh_regex_t *regex, const char *str, char **key)
+{
+#if ENABLE_PCRE
+  int count = 0, esize = 0, capcount = 0, rc, i, n, ovsize, *ov;
+  unsigned char *table = NULL;
+  long *so, *eo;
+  const char **names;
+
+  *key = NULL;
+  if (regex->is_posix || regex->re_code == NULL || str == NULL)
+    return TVHREGEX_KEY_ERROR;
+  if (pcre_fullinfo(regex->re_code, regex->re_extra, PCRE_INFO_NAMECOUNT, &count) ||
+      pcre_fullinfo(regex->re_code, regex->re_extra, PCRE_INFO_NAMEENTRYSIZE, &esize) ||
+      pcre_fullinfo(regex->re_code, regex->re_extra, PCRE_INFO_NAMETABLE, &table) ||
+      pcre_fullinfo(regex->re_code, regex->re_extra, PCRE_INFO_CAPTURECOUNT, &capcount) ||
+      count <= 0 || table == NULL)
+    return TVHREGEX_KEY_ERROR;
+  ovsize = (capcount + 1) * 3;
+  ov = malloc(ovsize * sizeof(int));
+  so = malloc(count * sizeof(long));
+  eo = malloc(count * sizeof(long));
+  names = malloc(count * sizeof(char *));
+  if (ov == NULL || so == NULL || eo == NULL || names == NULL) {
+    rc = TVHREGEX_KEY_ERROR;
+    goto end;
+  }
+  rc = pcre_exec(regex->re_code, regex->re_extra, str, strlen(str), 0, 0, ov, ovsize);
+  if (rc < 0) {
+    rc = rc == PCRE_ERROR_NOMATCH ? TVHREGEX_KEY_NOMATCH : TVHREGEX_KEY_ERROR;
+    goto end;
+  }
+  for (i = 0; i < count; i++) {
+    n = (table[i * esize] << 8) | table[i * esize + 1];
+    names[i] = (const char *)(table + i * esize + 2);
+    if (rc > 0 && n < rc && ov[2 * n] >= 0) {
+      so[i] = ov[2 * n];
+      eo[i] = ov[2 * n + 1];
+    } else {
+      so[i] = eo[i] = -1;
+    }
+  }
+  rc = regex_named_key_build(str, count, names, so, eo, key);
+end:
+  free(ov);
+  free(so);
+  free(eo);
+  free(names);
+  return rc;
+#elif ENABLE_PCRE2
+  uint32_t count = 0, esize = 0, ocount, n, i;
+  PCRE2_SPTR table = NULL;
+  pcre2_match_data *md;
+  PCRE2_SIZE *ov;
+  long *so = NULL, *eo = NULL;
+  const char **names = NULL;
+  int rc;
+
+  *key = NULL;
+  if (regex->is_posix || regex->re_code == NULL || str == NULL)
+    return TVHREGEX_KEY_ERROR;
+  if (pcre2_pattern_info(regex->re_code, PCRE2_INFO_NAMECOUNT, &count) < 0 ||
+      pcre2_pattern_info(regex->re_code, PCRE2_INFO_NAMEENTRYSIZE, &esize) < 0 ||
+      pcre2_pattern_info(regex->re_code, PCRE2_INFO_NAMETABLE, &table) < 0 ||
+      count == 0 || table == NULL)
+    return TVHREGEX_KEY_ERROR;
+  md = pcre2_match_data_create_from_pattern(regex->re_code, NULL);
+  if (md == NULL)
+    return TVHREGEX_KEY_ERROR;
+  rc = pcre2_match(regex->re_code, (PCRE2_SPTR8)str, PCRE2_ZERO_TERMINATED, 0, 0,
+                   md, regex->re_mcontext);
+  if (rc < 0) {
+    rc = rc == PCRE2_ERROR_NOMATCH ? TVHREGEX_KEY_NOMATCH : TVHREGEX_KEY_ERROR;
+    goto end;
+  }
+  so = malloc(count * sizeof(long));
+  eo = malloc(count * sizeof(long));
+  names = malloc(count * sizeof(char *));
+  if (so == NULL || eo == NULL || names == NULL) {
+    rc = TVHREGEX_KEY_ERROR;
+    goto end;
+  }
+  ov = pcre2_get_ovector_pointer(md);
+  ocount = pcre2_get_ovector_count(md);
+  for (i = 0; i < count; i++) {
+    n = (table[i * esize] << 8) | table[i * esize + 1];
+    names[i] = (const char *)(table + i * esize + 2);
+    if (n < ocount && ov[2 * n] != PCRE2_UNSET) {
+      so[i] = ov[2 * n];
+      eo[i] = ov[2 * n + 1];
+    } else {
+      so[i] = eo[i] = -1;
+    }
+  }
+  rc = regex_named_key_build(str, count, names, so, eo, key);
+end:
+  free(so);
+  free(eo);
+  free(names);
+  pcre2_match_data_free(md);
+  return rc;
+#else
+  *key = NULL;
+  return TVHREGEX_KEY_ERROR;
+#endif
+}
+
+/*
  * Sanitizer helpers to avoid false positives
  */
 #if ENABLE_CCLANG_THREADSAN

@@ -75,4 +75,13 @@ int regex_match(tvh_regex_t *regex, const char *str);
 int regex_match_substring(tvh_regex_t *regex, unsigned number, char *buf, size_t size_buf);
 int regex_match_substring_length(tvh_regex_t *regex, unsigned number);
 
+/* Named capture groups (PCRE/PCRE2 only) */
+int regex_named_group_count(tvh_regex_t *regex);
+
+#define TVHREGEX_KEY_OK          1   /* matched, *key set (caller frees) */
+#define TVHREGEX_KEY_EMPTY       0   /* matched, all named groups empty */
+#define TVHREGEX_KEY_NOMATCH    -1   /* regex did not match */
+#define TVHREGEX_KEY_ERROR      -2   /* unsupported / no named groups / error */
+int regex_match_named_key(tvh_regex_t *regex, const char *str, char **key);
+
 #endif /* __TVHREGEX_H__ */
