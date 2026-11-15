@@ -2063,8 +2063,41 @@ tvheadend.idnode_grid = function(panel, conf)
             }
         });
 
+        /* Expand / collapse all groups, shown only while grouped */
+        var groupButtons = [
+            new Ext.Toolbar.Separator({ hidden: true }),
+            new Ext.Toolbar.Button({
+                text: _('Expand all'),
+                tooltip: _('Expand all groups'),
+                iconCls: 'expandall',
+                hidden: true,
+                handler: function() {
+                    grid.getView().expandAllGroups();
+                }
+            }),
+            new Ext.Toolbar.Button({
+                text: _('Collapse all'),
+                tooltip: _('Collapse all groups'),
+                iconCls: 'collapseall',
+                hidden: true,
+                handler: function() {
+                    grid.getView().collapseAllGroups();
+                }
+            })
+        ];
+
+        function updateGroupButtons() {
+            var grouped = !!(grid && store.groupField &&
+                             grid.getView().enableGrouping !== false);
+            if (groupButtons[0].hidden !== !grouped) {
+                Ext.each(groupButtons, function(b) { b.setVisible(grouped); });
+                page.doLayout();
+            }
+        }
+
         var page = new Ext.PagingToolbar(
-            tvheadend.PagingToolbarConf({store:store}, conf.titleP, auto, count)
+            tvheadend.PagingToolbarConf({store:store}, conf.titleP, auto, count,
+                                        groupButtons)
         );
 
         /* Extra buttons */
@@ -2158,6 +2191,9 @@ tvheadend.idnode_grid = function(panel, conf)
         grid.on('filterupdate', function() {
             page.changePage(0);
         });
+        grid.on('groupchange', updateGroupButtons);
+        store.on('groupchange', updateGroupButtons);
+        store.on('load', updateGroupButtons);
 
         if (conf.beforeedit)
             grid.on('beforeedit', conf.beforeedit);

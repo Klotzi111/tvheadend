@@ -726,7 +726,7 @@ tvheadend.loading = function(on) {
       Ext.getBody().unmask();
 };
 
-tvheadend.PagingToolbarConf = function(conf, title, auto, count)
+tvheadend.PagingToolbarConf = function(conf, title, auto, count, extra)
 {
   conf.width = 50;
   conf.pageSize = tvheadend.page_size;
@@ -742,6 +742,8 @@ tvheadend.PagingToolbarConf = function(conf, title, auto, count)
     conf.items.push(_('Auto-refresh'));
     conf.items.push(auto);
   }
+  if (extra)
+    conf.items = conf.items.concat(extra);
   if (count) {
     conf.items.push('->');
     conf.items.push('-');

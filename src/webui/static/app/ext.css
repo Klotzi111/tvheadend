@@ -240,6 +240,14 @@
     background-image: url(../icons/control_repeat_blue.png) !important;
 }
 
+.expandall {
+    background-image: url(../icons/arrow_down.png) !important;
+}
+
+.collapseall {
+    background-image: url(../icons/arrow_up.png) !important;
+}
+
 .cancel {
     background-image: url(../icons/cancel.png) !important;
 }
