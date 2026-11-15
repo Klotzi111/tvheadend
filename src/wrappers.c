@@ -502,16 +502,18 @@ int regex_named_group_count(tvh_regex_t *regex)
 
 #if ENABLE_PCRE || ENABLE_PCRE2
 /*
- * Build the key from all named groups (in name table order) as
+ * Build the result from all named groups (in name table order).
+ * Without a separator, it is the comparison key
  * "<name>=<length>:<value>;" so that two keys of the same regex are
- * equal exactly when every named group has the same value.
+ * equal exactly when every named group has the same value. With a
+ * separator, it is the display text: the group values joined by sep.
  * Unset groups count as empty strings.
  */
 static int regex_named_key_build
   (const char *str, int count, const char **names,
-   const long *so, const long *eo, char **key)
+   const long *so, const long *eo, const char *sep, char **key)
 {
-  size_t total = 1, pos = 0, len;
+  size_t total = 1, pos = 0, len, seplen = sep ? strlen(sep) : 0;
   int i, nonempty = 0;
   char *k;
 
@@ -519,7 +521,7 @@ static int regex_named_key_build
     len = (so[i] >= 0 && eo[i] > so[i]) ? eo[i] - so[i] : 0;
     if (len)
       nonempty = 1;
-    total += strlen(names[i]) + len + 24;
+    total += strlen(names[i]) + len + seplen + 24;
   }
   if (!nonempty)
     return TVHREGEX_KEY_EMPTY;
@@ -528,10 +530,16 @@ static int regex_named_key_build
     return TVHREGEX_KEY_ERROR;
   for (i = 0; i < count; i++) {
     len = (so[i] >= 0 && eo[i] > so[i]) ? eo[i] - so[i] : 0;
-    pos += snprintf(k + pos, total - pos, "%s=%zu:", names[i], len);
+    if (sep == NULL) {
+      pos += snprintf(k + pos, total - pos, "%s=%zu:", names[i], len);
+    } else if (i > 0) {
+      memcpy(k + pos, sep, seplen);
+      pos += seplen;
+    }
     memcpy(k + pos, str + (len ? so[i] : 0), len);
     pos += len;
-    k[pos++] = ';';
+    if (sep == NULL)
+      k[pos++] = ';';
   }
   k[pos] = '\0';
   *key = k;
@@ -540,11 +548,13 @@ static int regex_named_key_build
 #endif
 
 /*
- * Match str and build a comparison key from all named capture groups.
- * Uses its own match data, so it does not disturb regex_match() state
- * and supports more than TVHREGEX_MAX_MATCHES groups.
+ * Match str and build a comparison key (sep == NULL) or a display text
+ * from all named capture groups. Uses its own match data, so it does
+ * not disturb regex_match() state and supports more than
+ * TVHREGEX_MAX_MATCHES groups.
  */
-int regex_match_named_key(tvh_regex_t *regex, const char *str, char **key)
+static int regex_match_named
+  (tvh_regex_t *regex, const char *str, const char *sep, char **key)
 {
 #if ENABLE_PCRE
   int count = 0, esize = 0, capcount = 0, rc, i, n, ovsize, *ov;
@@ -585,7 +595,7 @@ int regex_match_named_key(tvh_regex_t *regex, const char *str, char **key)
       so[i] = eo[i] = -1;
     }
   }
-  rc = regex_named_key_build(str, count, names, so, eo, key);
+  rc = regex_named_key_build(str, count, names, so, eo, sep, key);
 end:
   free(ov);
   free(so);
@@ -637,7 +647,7 @@ end:
       so[i] = eo[i] = -1;
     }
   }
-  rc = regex_named_key_build(str, count, names, so, eo, key);
+  rc = regex_named_key_build(str, count, names, so, eo, sep, key);
 end:
   free(so);
   free(eo);
@@ -648,6 +658,17 @@ end:
   *key = NULL;
   return TVHREGEX_KEY_ERROR;
 #endif
+}
+
+int regex_match_named_key(tvh_regex_t *regex, const char *str, char **key)
+{
+  return regex_match_named(regex, str, NULL, key);
+}
+
+int regex_match_named_text(tvh_regex_t *regex, const char *str,
+                           const char *sep, char **text)
+{
+  return regex_match_named(regex, str, sep ?: " | ", text);
 }
 
 /*

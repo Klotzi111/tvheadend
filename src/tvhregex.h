@@ -83,5 +83,8 @@ int regex_named_group_count(tvh_regex_t *regex);
 #define TVHREGEX_KEY_NOMATCH    -1   /* regex did not match */
 #define TVHREGEX_KEY_ERROR      -2   /* unsupported / no named groups / error */
 int regex_match_named_key(tvh_regex_t *regex, const char *str, char **key);
+/* Same return values; *text = the group values joined by sep (default " | ") */
+int regex_match_named_text(tvh_regex_t *regex, const char *str,
+                           const char *sep, char **text);
 
 #endif /* __TVHREGEX_H__ */
