@@ -562,6 +562,52 @@ describe('DataGrid', () => {
       expect(wrapper.findAll('.data-grid__cluster-count')).toHaveLength(0)
     })
 
+    it('shows no expand / collapse all buttons unless opted in', () => {
+      const wrapper = mountGrid({
+        entries: groupedEntries,
+        groupField: 'channel',
+        groupableFields,
+      })
+      expect(wrapper.find('.data-grid__group-expand').exists()).toBe(false)
+    })
+
+    it('expands and collapses every cluster from the summary line', async () => {
+      const wrapper = mountGrid({
+        entries: groupedEntries,
+        groupField: 'channel',
+        groupableFields,
+        groupExpandAll: true,
+      })
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      const [expandAll, collapseAll] = wrapper.findAll('.data-grid__group-expand-btn')
+
+      await expandAll.trigger('click')
+      /* Raw group-field values, as the chevron stores them. */
+      const expanded = dataTable.props('expandedRowGroups') as string[]
+      expect([...expanded].sort()).toEqual(['ch-uuid-1', 'ch-uuid-2'])
+      expect(wrapper.findAll('.data-grid__cluster-count')).toHaveLength(2)
+      expect(wrapper.emitted('rowgroupExpand')).toHaveLength(2)
+
+      await collapseAll.trigger('click')
+      expect(dataTable.props('expandedRowGroups')).toEqual([])
+      expect(wrapper.findAll('.data-grid__cluster-count')).toHaveLength(0)
+      expect(wrapper.emitted('rowgroupCollapse')).toHaveLength(2)
+    })
+
+    it('expands every phone cluster under its cluster key', async () => {
+      setViewport(400)
+      const wrapper = mountGrid({
+        entries: groupedEntries,
+        groupField: 'channel',
+        groupableFields,
+        groupExpandAll: true,
+      })
+      await wrapper.findAll('.data-grid__group-expand-btn')[0].trigger('click')
+      /* Phone header taps key clusters by the display key. */
+      const keys = wrapper.emitted('rowgroupExpand')?.map((e) => e[0])
+      expect(keys?.sort()).toEqual(['Alpha', 'Beta'])
+    })
+
     it('orders clusters by display key with the user sort secondary within each', () => {
       /* Mixed-key fixture: two clusters interleaved in arrival
        * order, with a DESC secondary sort on bytes. */

@@ -49,6 +49,8 @@ import {
   ArrowUp as ArrowUpIcon,
   ChevronDown as ChevronDownIcon,
   ChevronRight as ChevronRightIcon,
+  ChevronsDownUp as ChevronsDownUpIcon,
+  ChevronsUpDown as ChevronsUpDownIcon,
   X as XIcon,
 } from 'lucide-vue-next'
 import { centredScrollTop } from '@/utils/scrollMath'
@@ -336,6 +338,13 @@ interface Props {
    * grouped-mode consumers keep today's workaround.
    */
   enableGroupedVirtualScroll?: boolean
+  /*
+   * Show "Expand all" / "Collapse all" buttons in the summary line
+   * while grouped. Opt-in: per-cluster paging consumers (EPG Table)
+   * fetch a page on every expand, so expanding every cluster at
+   * once would fire one request per cluster.
+   */
+  groupExpandAll?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -384,6 +393,7 @@ const props = withDefaults(defineProps<Props>(), {
   clusterTotals: undefined,
   isLoadMoreRow: undefined,
   enableGroupedVirtualScroll: false,
+  groupExpandAll: false,
 })
 
 const emit = defineEmits<{
@@ -1114,6 +1124,38 @@ function onPhoneHeaderClick(key: string): void {
   }
 }
 
+/* Every cluster key of the current grouping, in the key space the
+ * active layout keeps in `expandedRowGroups`: the desktop chevron
+ * stores the raw group-field value (PrimeVue's resolveFieldData),
+ * the phone header tap the cluster sort key string. */
+function allGroupKeys(): unknown[] {
+  const def = activeGroupDef.value
+  const gf = effectiveGroupField.value
+  if (!def || !gf) return []
+  const keys = new Set<unknown>()
+  for (const row of entriesForTable.value) {
+    keys.add(isPhone.value ? clusterSortKey(row, def) : row[gf])
+  }
+  return [...keys]
+}
+
+/* "Expand all" / "Collapse all" in the summary line. Emit the same
+ * per-cluster events as a chevron click so consumers stay in sync. */
+function expandAllGroups(): void {
+  const current = new Set(expandedRowGroups.value)
+  const added = allGroupKeys().filter((k) => !current.has(k))
+  if (added.length === 0) return
+  expandedRowGroups.value = [...expandedRowGroups.value, ...added]
+  for (const k of added) emit('rowgroupExpand', k)
+}
+
+function collapseAllGroups(): void {
+  const removed = expandedRowGroups.value
+  if (removed.length === 0) return
+  expandedRowGroups.value = []
+  for (const k of removed) emit('rowgroupCollapse', k)
+}
+
 /*
  * Disable VirtualScroller while grouping is active.
  *
@@ -1774,6 +1816,32 @@ defineExpose({
               @click.stop="emit('update:groupField', null)"
             >
               <XIcon :size="12" :stroke-width="2" />
+            </button>
+          </span>
+          <!-- Expand all / Collapse all, opt-in via `groupExpandAll`. -->
+          <span
+            v-if="activeGroupDef && groupExpandAll"
+            :class="['data-grid__group-expand', `${bemPrefix}__group-expand`]"
+          >
+            <button
+              type="button"
+              class="data-grid__group-expand-btn"
+              :title="t('Expand all groups')"
+              :aria-label="t('Expand all groups')"
+              @click.stop="expandAllGroups"
+            >
+              <ChevronsUpDownIcon :size="14" :stroke-width="2" />
+              <span v-if="!isPhone">{{ t('Expand all') }}</span>
+            </button>
+            <button
+              type="button"
+              class="data-grid__group-expand-btn"
+              :title="t('Collapse all groups')"
+              :aria-label="t('Collapse all groups')"
+              @click.stop="collapseAllGroups"
+            >
+              <ChevronsDownUpIcon :size="14" :stroke-width="2" />
+              <span v-if="!isPhone">{{ t('Collapse all') }}</span>
             </button>
           </span>
         </slot>
@@ -3063,6 +3131,42 @@ defineExpose({
 }
 
 .data-grid__group-clear:focus-visible {
+  outline: 2px solid var(--tvh-primary);
+  outline-offset: 1px;
+}
+
+/*
+ * Expand all / Collapse all — same chrome as the ungroup button,
+ * with an icon plus (desktop only) a text label.
+ */
+.data-grid__group-expand {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+}
+
+.data-grid__group-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+  padding: 0 4px;
+  background: transparent;
+  color: var(--tvh-primary);
+  border: 1px solid transparent;
+  border-radius: var(--tvh-radius-sm);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.data-grid__group-expand-btn:hover {
+  background: color-mix(in srgb, var(--tvh-primary) var(--tvh-hover-strength), transparent);
+  border-color: var(--tvh-border);
+}
+
+.data-grid__group-expand-btn:focus-visible {
   outline: 2px solid var(--tvh-primary);
   outline-offset: 1px;
 }

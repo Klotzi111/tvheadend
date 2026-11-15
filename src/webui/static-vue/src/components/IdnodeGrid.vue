@@ -2823,6 +2823,7 @@ defineExpose({
     :group-field="groupField"
     :group-order="groupOrder"
     :groupable-fields="groupableFields"
+    group-expand-all
     filter-display="menu"
     :resolve-label="colLabel"
     :resolve-description="colDescription"
