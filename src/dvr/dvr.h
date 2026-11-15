@@ -793,6 +793,10 @@ uint32_t dvr_autorec_get_max_sched_count(dvr_autorec_entry_t *dae);
 
 int dvr_autorec_dedup_key(dvr_autorec_entry_t *dae, const char *text, char **key);
 
+int dvr_autorec_dedup_text(dvr_autorec_entry_t *dae, const char *text, char **out);
+
+dvr_autorec_entry_t *dvr_autorec_dedup_rule(dvr_entry_t *de);
+
 /**
  *
  */

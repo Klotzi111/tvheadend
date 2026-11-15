@@ -122,6 +122,54 @@ int dvr_autorec_dedup_key(dvr_autorec_entry_t *dae, const char *text, char **key
 }
 
 /*
+ * Display text of the duplicate regex for a text: the values of all
+ * named groups joined by " | ". Returns 1 and sets *out (caller frees)
+ * on success; 0 like dvr_autorec_dedup_key(), but without logging,
+ * because the UI calls this for every row.
+ */
+int dvr_autorec_dedup_text(dvr_autorec_entry_t *dae, const char *text, char **out)
+{
+  *out = NULL;
+  if (text == NULL || dae == NULL || !dae->dae_record_regex_ok)
+    return 0;
+  if (regex_match_named_text(&dae->dae_record_regex_code, text, NULL, out) ==
+        TVHREGEX_KEY_OK)
+    return 1;
+  free(*out);
+  *out = NULL;
+  return 0;
+}
+
+/*
+ * The autorec rule whose duplicate regex applies to a DVR entry: the
+ * rule that created it or - because editing a rule unlinks all its
+ * recordings, finished ones included - the first rule with a valid
+ * duplicate regex whose title pattern matches the title of the entry
+ * (and whose channel, if set, is the channel of the entry).
+ */
+dvr_autorec_entry_t *dvr_autorec_dedup_rule(dvr_entry_t *de)
+{
+  dvr_autorec_entry_t *dae = de->de_autorec;
+  lang_str_ele_t *ls;
+
+  if (dae && dae->dae_record_regex_ok)
+    return dae;
+  if (de->de_title == NULL)
+    return NULL;
+  TAILQ_FOREACH(dae, &autorec_entries, dae_link) {
+    if (!dae->dae_record_regex_ok || dae->dae_title == NULL ||
+        dae->dae_title[0] == '\0')
+      continue;
+    if (dae->dae_channel && de->de_channel && dae->dae_channel != de->de_channel)
+      continue;
+    RB_FOREACH(ls, de->de_title, link)
+      if (!regex_match(&dae->dae_title_regex, ls->str))
+        return dae;
+  }
+  return NULL;
+}
+
+/*
  *
  */
 static uint32_t dvr_autorec_get_max_count(dvr_autorec_entry_t *dae)

@@ -4159,6 +4159,22 @@ dvr_entry_class_disp_extratext_get(void *o)
   return &prop_ptr;
 }
 
+static const void *
+dvr_entry_class_extratext_key_get(void *o)
+{
+  dvr_entry_t *de = (dvr_entry_t *)o;
+  const char *text = *(const char **)dvr_entry_class_disp_extratext_get(o);
+  char *key;
+
+  if (dvr_autorec_dedup_text(dvr_autorec_dedup_rule(de), text, &key)) {
+    strlcpy(prop_sbuf, key, sizeof(prop_sbuf));
+    free(key);
+    return &prop_sbuf_ptr;
+  }
+  prop_ptr = text;
+  return &prop_ptr;
+}
+
 static int
 dvr_entry_class_disp_extratext_set(void *o, const void *v)
 {
@@ -4789,6 +4805,22 @@ const idclass_t dvr_entry_class = {
       .get      = dvr_entry_class_disp_extratext_get,
       .set      = dvr_entry_class_disp_extratext_set,
       .opts     = PO_NOSAVE,
+    },
+    {
+      .type     = PT_STR,
+      .id       = "extratext_key",
+      .name     = N_("Extra text (duplicate regex)"),
+      .desc     = N_("Extra text reduced to the named capture groups of "
+                     "the duplicate handling regex of the autorec rule, "
+                     "e.g. the real episode title. Uses the rule that "
+                     "created the recording or, if the recording is no "
+                     "longer linked to a rule, the first rule with a "
+                     "duplicate handling regex whose title matches. "
+                     "Shows the whole extra text if there is no such "
+                     "rule or the regex does not match. Sort or group "
+                     "by this column to find the same episode."),
+      .get      = dvr_entry_class_extratext_key_get,
+      .opts     = PO_RDONLY | PO_NOSAVE | PO_HIDDEN | PO_ADVANCED,
     },
     {
       .type     = PT_INT,
