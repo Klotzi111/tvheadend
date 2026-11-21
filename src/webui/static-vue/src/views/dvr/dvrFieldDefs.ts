@@ -389,6 +389,26 @@ export const DVR_FIELDS = {
  * read at render time, so no component setup is needed here. */
 const titleGroupFmt = makeKodiPlainFmt(() => !!useAccessStore().data?.label_formatting)
 
+function plainGroupFmt(v: unknown): string {
+  if (typeof v === 'string') return v
+  return v == null ? '' : String(v)
+}
+
+/* Group option for a plain text field: the text itself is the
+ * cluster key, an empty value gets Classic's "(None)" header
+ * (GroupingView emptyGroupText) instead of a blank one. */
+function textGroup(
+  field: string,
+  label: string,
+  fmt: (v: unknown) => string = plainGroupFmt
+): GroupableFieldDef {
+  return {
+    field,
+    label,
+    headerLabel: (row) => fmt((row as Record<string, unknown>)[field]) || t('(None)'),
+  }
+}
+
 /* ---- Group-by options for the four dvr_entry list views ----
  *
  * Shared by Upcoming / Finished / Failed / Removed. Per design
@@ -398,6 +418,8 @@ const titleGroupFmt = makeKodiPlainFmt(() => !!useAccessStore().data?.label_form
  *     groups on the title without the copyright year; the Vue
  *     title cell never appends the year, so the raw title is
  *     already that key.
+ *   - Plain text fields (Extra text, Episode, Owner, Creator,
+ *     Comment) — the text itself is the key, see `textGroup`.
  *   - Channel — most natural grouping ("recordings for a single channel")
  *   - Config — group by DVR profile (multi-config installs)
  *   - Start date — by the SCHEDULED start date (not actual);
@@ -420,6 +442,8 @@ export const DVR_GROUPABLE_FIELDS: GroupableFieldDef[] = [
     label: t('Title'),
     headerLabel: (row) => titleGroupFmt((row as { disp_title?: unknown }).disp_title),
   },
+  textGroup('disp_extratext', t('Extra text'), titleGroupFmt),
+  textGroup('episode_disp', t('Episode')),
   {
     field: 'channel',
     label: t('Channel'),
@@ -461,6 +485,9 @@ export const DVR_GROUPABLE_FIELDS: GroupableFieldDef[] = [
     label: t('Start date'),
     groupKey: (row) => fmtGroupDate((row as { start?: unknown }).start),
   },
+  textGroup('owner', t('Owner')),
+  textGroup('creator', t('Creator')),
+  textGroup('comment', t('Comment')),
 ]
 
 /* ---- Autorec field defaults (`dvrautorec` idclass) ----

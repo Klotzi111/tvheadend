@@ -80,9 +80,14 @@ describe('DVR_GROUPABLE_FIELDS — title group', () => {
   it('keeps the other group options', () => {
     expect(DVR_GROUPABLE_FIELDS.map((g) => g.field)).toEqual([
       'disp_title',
+      'disp_extratext',
+      'episode_disp',
       'channel',
       'config_name',
       'start',
+      'owner',
+      'creator',
+      'comment',
     ])
   })
 
@@ -94,6 +99,15 @@ describe('DVR_GROUPABLE_FIELDS — title group', () => {
   it('strips Kodi label codes when label formatting is on', () => {
     useAccessStore().data = { admin: true, dvr: true, label_formatting: 1 }
     expect(titleGroup()?.headerLabel?.({ disp_title: '[B]News[/B]' })).toBe('News')
+  })
+
+  it('groups plain text fields by their text, empty ones under (None)', () => {
+    const owner = DVR_GROUPABLE_FIELDS.find((d) => d.field === 'owner')
+    expect(owner?.label).toBe('Owner')
+    expect(owner?.groupKey).toBeUndefined()
+    expect(owner?.headerLabel?.({ owner: 'admin' })).toBe('admin')
+    expect(owner?.headerLabel?.({ owner: '' })).toBe('(None)')
+    expect(owner?.headerLabel?.({})).toBe('(None)')
   })
 
   it('renders an empty header for a row without a title', () => {
