@@ -185,6 +185,7 @@ const cols: ColumnDef[] = [
   { field: 'enabled', ...DVR_FIELDS.enabled, editable: true },
   { field: 'disp_title', ...DVR_FIELDS.disp_title, format: kodiFmt, editable: true },
   { field: 'disp_extratext', ...DVR_FIELDS.disp_extratext, format: kodiFmt, editable: true },
+  { field: 'extratext_key', ...DVR_FIELDS.extratext_key, format: kodiFmt },
   { field: 'episode_disp', ...DVR_FIELDS.episode_disp, editable: true },
   /* `channel` (UUID, deferred enum) instead of `channelname`
    * (resolved string, server-side rdonly) — gives the user an

@@ -224,6 +224,9 @@ export const DVR_FIELDS = {
     width: 280,
   },
   disp_extratext: { sortable: true, filterType: 'string', minVisible: 'desktop', width: 240 },
+  /* Extra text reduced by the autorec duplicate handling regex
+   * (server-computed, read-only, PO_HIDDEN so it starts hidden). */
+  extratext_key: { sortable: true, filterType: 'string', minVisible: 'desktop', width: 240 },
   episode_disp: { sortable: true, filterType: 'string', minVisible: 'desktop', width: 180 },
 
   /* Channel.
@@ -398,6 +401,9 @@ const titleGroupFmt = makeKodiPlainFmt(() => !!useAccessStore().data?.label_form
  *     groups on the title without the copyright year; the Vue
  *     title cell never appends the year, so the raw title is
  *     already that key.
+ *   - Extra text (duplicate regex) — the server-reduced episode
+ *     key (`extratext_key`), so repeats of one episode cluster
+ *     even when their extra texts differ in repeat notes.
  *   - Channel — most natural grouping ("recordings for a single channel")
  *   - Config — group by DVR profile (multi-config installs)
  *   - Start date — by the SCHEDULED start date (not actual);
@@ -419,6 +425,11 @@ export const DVR_GROUPABLE_FIELDS: GroupableFieldDef[] = [
     field: 'disp_title',
     label: t('Title'),
     headerLabel: (row) => titleGroupFmt((row as { disp_title?: unknown }).disp_title),
+  },
+  {
+    field: 'extratext_key',
+    label: t('Extra text (duplicate regex)'),
+    headerLabel: (row) => titleGroupFmt((row as { extratext_key?: unknown }).extratext_key),
   },
   {
     field: 'channel',

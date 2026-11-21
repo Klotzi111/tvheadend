@@ -80,6 +80,7 @@ describe('DVR_GROUPABLE_FIELDS — title group', () => {
   it('keeps the other group options', () => {
     expect(DVR_GROUPABLE_FIELDS.map((g) => g.field)).toEqual([
       'disp_title',
+      'extratext_key',
       'channel',
       'config_name',
       'start',
@@ -94,6 +95,14 @@ describe('DVR_GROUPABLE_FIELDS — title group', () => {
   it('strips Kodi label codes when label formatting is on', () => {
     useAccessStore().data = { admin: true, dvr: true, label_formatting: 1 }
     expect(titleGroup()?.headerLabel?.({ disp_title: '[B]News[/B]' })).toBe('News')
+  })
+
+  it('offers grouping by the duplicate regex extra text', () => {
+    useAccessStore().data = { admin: true, dvr: true, label_formatting: 1 }
+    const g = DVR_GROUPABLE_FIELDS.find((d) => d.field === 'extratext_key')
+    expect(g?.label).toBe('Extra text (duplicate regex)')
+    expect(g?.groupKey).toBeUndefined()
+    expect(g?.headerLabel?.({ extratext_key: '[B]Der Maulwurf[/B]' })).toBe('Der Maulwurf')
   })
 
   it('renders an empty header for a row without a title', () => {

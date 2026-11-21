@@ -86,6 +86,7 @@ export function dvrEntryColumns(
     /* Basic */
     { field: 'disp_title', ...DVR_FIELDS.disp_title, format: kodiFmt },
     { field: 'disp_extratext', ...DVR_FIELDS.disp_extratext, format: kodiFmt },
+    { field: 'extratext_key', ...DVR_FIELDS.extratext_key, format: kodiFmt },
     { field: 'episode_disp', ...DVR_FIELDS.episode_disp },
     /* Use the UUID-bearing `channel` column (not the snapshotted
      * `channelname`) so drill-down + clustering work for live
